@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "hajlib",
+  "version": "${version}",
+  "name": "hajlib",
+  "description": "NotNet's Minecraft mod libraryy",
+  "authors": [
+    "NotNite"
+  ],
+  "contact": {
+    "sources": "https://github.com/n2pm/hajlib"
+  },
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {},
+  "mixins": [
+    "hajlib.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.19",
+    "minecraft": "~1.20",
+    "java": ">=17",
+    "fabric-api": "*",
+    "fabric-language-kotlin": ">=1.8.22"
+  }
+}
