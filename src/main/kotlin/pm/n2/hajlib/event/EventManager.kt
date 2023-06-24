@@ -1,6 +1,5 @@
 package pm.n2.hajlib.event
 
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlin.reflect.KClass
 import kotlin.reflect.full.declaredFunctions
@@ -68,7 +67,7 @@ class EventManager {
         }
     }
 
-    inline fun <reified T : Any> waitForEvent(obj: T): T {
+    suspend inline fun <reified T : Any> waitForEvent(obj: T): T {
         var value: T? = null
         val receivedSignal = Mutex(true)
         val func = { e: Any ->
@@ -77,9 +76,7 @@ class EventManager {
         }
 
         registerFunc<T>(func)
-        runBlocking {
-            receivedSignal.lock()
-        }
+        receivedSignal.lock()
         unregisterFunc<T>(func)
 
         return value!!

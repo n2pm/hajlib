@@ -8,7 +8,7 @@ open class TaskContext {
         val eventManager = EventManager()
     }
 
-    open fun waitTicks(ticks: Int) {
+    open suspend fun waitTicks(ticks: Int) {
         for (i in 0 until ticks) {
             eventManager.waitForEvent(InternalEvent.PostTick)
         }
