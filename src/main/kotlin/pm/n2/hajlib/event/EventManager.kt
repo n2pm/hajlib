@@ -31,11 +31,11 @@ class EventManager {
     }
 
     fun internalFunc(
-        type: Class<*>,
+        type: KClass<*>,
         func: (obj: Any) -> Unit,
         register: Boolean
     ): (Any) -> Unit {
-        val list = functions.getOrPut(type) { mutableListOf() }
+        val list = functions.getOrPut(type.java) { mutableListOf() }
 
         if (register) {
             list.add(func)
@@ -50,10 +50,13 @@ class EventManager {
     fun registerClass(obj: Any) = internalClass(obj::class, obj, true)
     fun unregisterClass(obj: KClass<*>) = internalClass(obj, obj.objectInstance!!, false)
     fun unregisterClass(obj: Any) = internalClass(obj::class, obj, false)
-    inline fun <reified T> registerFunc(noinline func: (Any) -> Unit) =
-        internalFunc(T::class.java, func, true)
+    inline fun <reified T> registerFunc(noinline func: (Any) -> Unit) = internalFunc(T::class, func, true)
+    inline fun <reified T> unregisterFunc(noinline func: (Any) -> Unit) = internalFunc(T::class, func, false)
+    inline fun <reified T : KClass<*>> registerFuncClass(clazz: T, noinline func: (Any) -> Unit) =
+        internalFunc(clazz, func, true)
 
-    inline fun <reified T> unregisterFunc(noinline func: (Any) -> Unit) = internalFunc(T::class.java, func, false)
+    inline fun <reified T : KClass<*>> unregisterFuncClass(clazz: T, noinline func: (Any) -> Unit) =
+        internalFunc(clazz, func, false)
 
     fun dispatch(event: Any) {
         val targetHandlers = handlers[event.javaClass] ?: listOf()
@@ -67,7 +70,7 @@ class EventManager {
         }
     }
 
-    suspend inline fun <reified T : Any> waitForEvent(obj: T): T {
+    suspend inline fun <reified T> waitForEvent(obj: T): T {
         var value: T? = null
         val receivedSignal = Mutex(true)
         val func = { e: Any ->
@@ -78,6 +81,21 @@ class EventManager {
         registerFunc<T>(func)
         receivedSignal.lock()
         unregisterFunc<T>(func)
+
+        return value!!
+    }
+
+    suspend inline fun <reified T : Any, reified C : KClass<T>> waitForEventClass(obj: C): T {
+        var value: T? = null
+        val receivedSignal = Mutex(true)
+        val func = { e: Any ->
+            value = e as T
+            receivedSignal.unlock()
+        }
+
+        registerFuncClass<C>(obj, func)
+        receivedSignal.lock()
+        unregisterFuncClass<C>(obj, func)
 
         return value!!
     }
