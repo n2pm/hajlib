@@ -58,17 +58,24 @@ class EventManager {
     inline fun <reified T : KClass<*>> unregisterFuncClass(clazz: T, noinline func: (Any) -> Unit) =
         internalFunc(clazz, func, false)
 
-    fun dispatch(event: Any) {
+    fun dispatch(event: Any): List<Any> {
         val targetHandlers = handlers[event.javaClass] ?: listOf()
+        val ret = mutableListOf<Any>()
+
         for (target in targetHandlers) {
-            target.invoke(event)
+            val response = target.invoke(event)
+            ret.add(response)
         }
 
         val targetFunctions = functions[event.javaClass] ?: listOf()
         for (func in targetFunctions) {
             func(event)
         }
+
+        return ret
     }
+
+    inline fun <reified T> dispatchWithReturn(event: Any) = dispatch(event).filterIsInstance<T>()
 
     suspend inline fun <reified T> waitForEvent(obj: T): T {
         var value: T? = null
