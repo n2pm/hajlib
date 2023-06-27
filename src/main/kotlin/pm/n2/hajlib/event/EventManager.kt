@@ -8,7 +8,7 @@ import kotlin.reflect.jvm.javaType
 
 class EventManager {
     private val handlers: MutableMap<Class<*>, MutableList<EventTarget>> = mutableMapOf()
-    private val functions: MutableMap<Class<*>, MutableList<(obj: Any) -> Unit>> = mutableMapOf()
+    private val functions: MutableMap<Class<*>, MutableList<(obj: Any) -> Any>> = mutableMapOf()
 
     private fun internalClass(clazz: KClass<*>, obj: Any, register: Boolean) {
         val methods = clazz.declaredFunctions.filter { func -> func.annotations.any { it is EventHandler } }
@@ -32,9 +32,9 @@ class EventManager {
 
     fun internalFunc(
         type: KClass<*>,
-        func: (obj: Any) -> Unit,
+        func: (obj: Any) -> Any,
         register: Boolean
-    ): (Any) -> Unit {
+    ): (Any) -> Any {
         val list = functions.getOrPut(type.java) { mutableListOf() }
 
         if (register) {
@@ -50,12 +50,12 @@ class EventManager {
     fun registerClass(obj: Any) = internalClass(obj::class, obj, true)
     fun unregisterClass(obj: KClass<*>) = internalClass(obj, obj.objectInstance!!, false)
     fun unregisterClass(obj: Any) = internalClass(obj::class, obj, false)
-    inline fun <reified T> registerFunc(noinline func: (Any) -> Unit) = internalFunc(T::class, func, true)
-    inline fun <reified T> unregisterFunc(noinline func: (Any) -> Unit) = internalFunc(T::class, func, false)
-    inline fun <reified T : KClass<*>> registerFuncClass(clazz: T, noinline func: (Any) -> Unit) =
+    inline fun <reified T> registerFunc(noinline func: (Any) -> Any) = internalFunc(T::class, func, true)
+    inline fun <reified T> unregisterFunc(noinline func: (Any) -> Any) = internalFunc(T::class, func, false)
+    inline fun <reified T : KClass<*>> registerFuncClass(clazz: T, noinline func: (Any) -> Any) =
         internalFunc(clazz, func, true)
 
-    inline fun <reified T : KClass<*>> unregisterFuncClass(clazz: T, noinline func: (Any) -> Unit) =
+    inline fun <reified T : KClass<*>> unregisterFuncClass(clazz: T, noinline func: (Any) -> Any) =
         internalFunc(clazz, func, false)
 
     fun dispatch(event: Any): List<Any> {
