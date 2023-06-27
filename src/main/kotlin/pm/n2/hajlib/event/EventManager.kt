@@ -58,9 +58,9 @@ class EventManager {
     inline fun <reified T : KClass<*>> unregisterFuncClass(clazz: T, noinline func: (Any) -> Any) =
         internalFunc(clazz, func, false)
 
-    fun dispatch(event: Any): List<Any> {
+    fun dispatch(event: Any): List<Any?> {
         val targetHandlers = handlers[event.javaClass] ?: listOf()
-        val ret = mutableListOf<Any>()
+        val ret = mutableListOf<Any?>()
 
         for (target in targetHandlers) {
             val response = target.invoke(event)
@@ -69,7 +69,8 @@ class EventManager {
 
         val targetFunctions = functions[event.javaClass] ?: listOf()
         for (func in targetFunctions) {
-            func(event)
+            val response = func(event)
+            ret.add(response)
         }
 
         return ret
