@@ -1,6 +1,7 @@
 plugins {
     id("fabric-loom") version "1.2-SNAPSHOT"
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
+    id("maven-publish")
 }
 
 group = property("maven_group")!!
@@ -40,7 +41,19 @@ tasks {
     }
 }
 
-
 java {
     withSourcesJar()
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/n2pm/hajlib")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
 }

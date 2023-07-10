@@ -1,16 +1,38 @@
 package pm.n2.hajlib.event
 
 import kotlinx.coroutines.sync.Mutex
+import java.lang.reflect.Method
 import kotlin.reflect.KClass
 import kotlin.reflect.full.declaredFunctions
 import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 
+typealias UnregisterFunc = () -> Unit
+typealias EventHandlerFunc<T> = (obj: T, unregister: UnregisterFunc) -> Any
+typealias EventTarget = Pair<Any?, Method>
+
+/**
+ * A simple event bus, similar to Bukkit and Orbit.
+ *
+ * There are two ways to receive events:
+ * - Register instances of classes with [registerClass], adding functions annotated with [EventHandler].
+ * - Register functions directly with [registerFunc].
+ *
+ * Define custom events in your own enum-like class, or use existing types (e.g. packet classes).
+ *
+ * ```
+ * sealed class MyEvents {
+ *     object SomethingHappened : MyEvents()
+ *     class SomethingElseHappened(val data: String) : MyEvents()
+ * }
+ * ```
+ */
+@Suppress("UNCHECKED_CAST")
 class EventManager {
     private val handlers: MutableMap<Class<*>, MutableList<EventTarget>> = mutableMapOf()
-    private val functions: MutableMap<Class<*>, MutableList<(obj: Any) -> Any>> = mutableMapOf()
+    private val functions: MutableMap<Class<*>, MutableList<EventHandlerFunc<*>>> = mutableMapOf()
 
-    private fun internalClass(clazz: KClass<*>, obj: Any, register: Boolean) {
+    private fun registerClassInternal(clazz: KClass<*>, obj: Any, register: Boolean) {
         val methods = clazz.declaredFunctions.filter { func -> func.annotations.any { it is EventHandler } }
 
         for (method in methods) {
@@ -25,16 +47,52 @@ class EventManager {
                     )
                 )
             } else {
-                list.removeIf { it.obj == obj && it.method == method.javaMethod!! }
+                list.removeIf { it.first == obj && it.second == method.javaMethod!! }
             }
         }
     }
 
-    fun internalFunc(
-        type: KClass<*>,
-        func: (obj: Any) -> Any,
+    private fun <T : Any> dispatchClassInternal(event: T): List<Any?> {
+        val targetHandlers = handlers[event.javaClass] ?: listOf()
+        val ret = mutableListOf<Any?>()
+
+        for (target in targetHandlers) {
+            val response = target.second.invoke(target.first, event)
+            ret.add(response)
+        }
+
+        return ret
+    }
+
+    private fun <T : Any> dispatchFuncInternal(event: T): List<Any?> {
+        val targetFunctions = functions[event.javaClass] ?: listOf()
+        val ret = mutableListOf<Any?>()
+
+        // Clone it so we don't ConcurrentModificationException
+        for (func in targetFunctions.toMutableList()) {
+            val funcCasted = func as EventHandlerFunc<T>
+            var shouldUnregister = false
+            val response = funcCasted(event) { shouldUnregister = true }
+            ret.add(response)
+
+            if (shouldUnregister) {
+                // Could call the internal function to remove it, but eh
+                functions[event.javaClass]?.remove(func)
+            }
+        }
+
+        return ret
+    }
+
+    /**
+     * Do not call this function directly. Use [registerFunc] and [unregisterFunc] instead.
+     * It is public because of inlined functions.
+     */
+    fun <T : Any, C : KClass<T>> registerFuncInternal(
+        type: C,
+        func: EventHandlerFunc<T>,
         register: Boolean
-    ): (Any) -> Any {
+    ): EventHandlerFunc<T> {
         val list = functions.getOrPut(type.java) { mutableListOf() }
 
         if (register) {
@@ -46,64 +104,105 @@ class EventManager {
         return func
     }
 
-    fun registerClass(obj: KClass<*>) = internalClass(obj, obj.objectInstance!!, true)
-    fun registerClass(obj: Any) = internalClass(obj::class, obj, true)
-    fun unregisterClass(obj: KClass<*>) = internalClass(obj, obj.objectInstance!!, false)
-    fun unregisterClass(obj: Any) = internalClass(obj::class, obj, false)
-    inline fun <reified T> registerFunc(noinline func: (Any) -> Any) = internalFunc(T::class, func, true)
-    inline fun <reified T> unregisterFunc(noinline func: (Any) -> Any) = internalFunc(T::class, func, false)
-    inline fun <reified T : KClass<*>> registerFuncClass(clazz: T, noinline func: (Any) -> Any) =
-        internalFunc(clazz, func, true)
+    /**
+     * Registers all functions with the [EventHandler] annotation in the specified class.
+     *
+     * ```
+     * class MyClass {
+     *   @EventHandler
+     *   fun exampleFunction(event: String) {
+     *      // Do something
+     *   }
+     * }
+     *
+     * val clazz = MyClass()
+     * val eventHandler = EventManager()
+     *
+     * eventHandler.registerClass(clazz)
+     * eventHandler.dispatch("Hello, world!")
+     * ```
+     *
+     * @param obj The class to register functions in.
+     */
+    fun registerClass(obj: Any) = registerClassInternal(obj::class, obj, true)
 
-    inline fun <reified T : KClass<*>> unregisterFuncClass(clazz: T, noinline func: (Any) -> Any) =
-        internalFunc(clazz, func, false)
+    /**
+     * Unregisters all functions with the [EventHandler] annotation in the specified class.
+     *
+     * @param obj The class to unregister functions in.
+     */
+    fun unregisterClass(obj: Any) = registerClassInternal(obj::class, obj, false)
 
-    fun dispatch(event: Any): List<Any?> {
-        val targetHandlers = handlers[event.javaClass] ?: listOf()
+    /**
+     * Registers a function to receive events of the specified type.
+     *
+     * The function will receive the event along with an unregister function. This can be called in your event handler
+     * logic to stop receiving events (e.g. one-time event handlers).
+     *
+     * ```
+     * val eventManager = EventManager()
+     *
+     * eventManager.registerFunc(String::class) { str, _ ->
+     *    println("String received (func one): $str")
+     * }
+     *
+     * eventManager.registerFunc(String::class) { str, unregister ->
+     *    println("String received (func two): $str")
+     *    unregister() // This function will no longer be called after this event
+     * }
+     *
+     * eventManager.dispatch("Hello, world!")
+     * eventManager.dispatch("Hello again, world!")
+     * ```
+     *
+     * @param clazz The class of the event to receive.
+     * @param func The function to call when an event is dispatched.
+     */
+    inline fun <reified T : Any, reified C : KClass<T>> registerFunc(clazz: C, noinline func: EventHandlerFunc<T>) =
+        registerFuncInternal(clazz, func, true)
+
+    /**
+     * Unregisters a function receiving events of the specified type. This is effectively the same as calling the
+     * unregister function inside the event handler.
+     *
+     * @param clazz The class of the event to stop receiving.
+     * @param func The associated event handler function.
+     */
+    inline fun <reified T : Any, reified C : KClass<T>> unregisterFunc(clazz: C, noinline func: EventHandlerFunc<T>) =
+        registerFuncInternal(clazz, func, false)
+
+    /**
+     * Dispatches an event to all registered handlers, returning a list of all return values from each handler.
+     * Use the [filterIsInstance] function to filter to a specific type.
+     *
+     * @param event The event to dispatch.
+     * @return A list of all return values from each handler.
+     */
+    fun <T : Any> dispatch(event: T): List<Any?> {
         val ret = mutableListOf<Any?>()
-
-        for (target in targetHandlers) {
-            val response = target.invoke(event)
-            ret.add(response)
-        }
-
-        val targetFunctions = functions[event.javaClass] ?: listOf()
-        for (func in targetFunctions) {
-            val response = func(event)
-            ret.add(response)
-        }
-
+        ret.addAll(dispatchClassInternal(event))
+        ret.addAll(dispatchFuncInternal(event))
         return ret
     }
 
-    inline fun <reified T> dispatchWithReturn(event: Any) = dispatch(event).filterIsInstance<T>()
-
-    suspend inline fun <reified T> waitForEvent(obj: T): T {
+    /**
+     * Waits for an event of the specified type and returns it.
+     *
+     * @param obj The class of the event to wait for.
+     */
+    suspend inline fun <reified T : Any, reified C : KClass<T>> waitForEvent(obj: C): T {
         var value: T? = null
+        // This is a very fun way to solve this, I think
         val receivedSignal = Mutex(true)
-        val func = { e: Any ->
-            value = e as T
+
+        val func = { e: T, unregister: UnregisterFunc ->
+            value = e
             receivedSignal.unlock()
+            unregister()
         }
 
-        registerFunc<T>(func)
+        registerFunc(obj, func)
         receivedSignal.lock()
-        unregisterFunc<T>(func)
-
-        return value!!
-    }
-
-    suspend inline fun <reified T : Any, reified C : KClass<T>> waitForEventClass(obj: C): T {
-        var value: T? = null
-        val receivedSignal = Mutex(true)
-        val func = { e: Any ->
-            value = e as T
-            receivedSignal.unlock()
-        }
-
-        registerFuncClass<C>(obj, func)
-        receivedSignal.lock()
-        unregisterFuncClass<C>(obj, func)
 
         return value!!
     }
