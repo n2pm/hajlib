@@ -8,7 +8,7 @@ import kotlin.reflect.jvm.javaMethod
 import kotlin.reflect.jvm.javaType
 
 typealias UnregisterFunc = () -> Unit
-typealias EventHandlerFunc<T> = (obj: T, unregister: UnregisterFunc) -> Any
+typealias EventHandlerFunc<T> = (obj: T, unregister: UnregisterFunc) -> Any?
 typealias EventTarget = Pair<Any?, Method>
 
 /**

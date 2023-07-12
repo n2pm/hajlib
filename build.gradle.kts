@@ -2,10 +2,8 @@ plugins {
     id("fabric-loom") version "1.2-SNAPSHOT"
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
     id("maven-publish")
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
-
-group = property("maven_group")!!
-version = property("mod_version")!!
 
 dependencies {
     minecraft("com.mojang:minecraft:${property("minecraft_version")}")
@@ -14,6 +12,14 @@ dependencies {
 
     modImplementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${property("fabric_kotlin_version")}")
+
+    val imguiVersion = property("imgui_version")!!
+
+    implementation(shadow("io.github.spair:imgui-java-binding:$imguiVersion")!!)
+    implementation(shadow("io.github.spair:imgui-java-lwjgl3:$imguiVersion")!!)
+    implementation(shadow("io.github.spair:imgui-java-natives-windows:$imguiVersion")!!)
+    implementation(shadow("io.github.spair:imgui-java-natives-linux:$imguiVersion")!!)
+    implementation(shadow("io.github.spair:imgui-java-natives-macos:$imguiVersion")!!)
 }
 
 loom {
@@ -34,6 +40,20 @@ tasks {
         from("LICENSE") {
             rename { "${it}_${project.name}" }
         }
+    }
+
+    shadowJar {
+        configurations = listOf(project.configurations.shadow.get())
+        dependencies {
+            exclude(dependency("org.lwjgl:lwjgl"))
+            exclude(dependency("org.lwjgl:lwjgl-glfw"))
+            exclude(dependency("org.lwjgl:lwjgl-opengl"))
+        }
+    }
+
+    remapJar {
+        dependsOn(shadowJar)
+        mustRunAfter(shadowJar)
     }
 
     compileKotlin {
