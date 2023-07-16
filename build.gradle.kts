@@ -1,3 +1,5 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     id("fabric-loom") version "1.2-SNAPSHOT"
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
@@ -14,7 +16,6 @@ dependencies {
     modImplementation("net.fabricmc:fabric-language-kotlin:${property("fabric_kotlin_version")}")
 
     val imguiVersion = property("imgui_version")!!
-
     implementation(shadow("io.github.spair:imgui-java-binding:$imguiVersion")!!)
     implementation(shadow("io.github.spair:imgui-java-lwjgl3:$imguiVersion")!!)
     implementation(shadow("io.github.spair:imgui-java-natives-windows:$imguiVersion")!!)
@@ -24,6 +25,22 @@ dependencies {
 
 loom {
     accessWidenerPath.set(file("src/main/resources/hajlib.accesswidener"))
+}
+
+val hajlibShadowJar = tasks.register<ShadowJar>("hajlibShadowJar") {
+    dependsOn(tasks.remapJar)
+    from(tasks.remapJar.get().outputs.files)
+
+    configurations = listOf(project.configurations.shadow.get())
+    archiveBaseName.set("hajlib")
+    archiveVersion.set(project.version.toString())
+    archiveClassifier.set("")
+
+    dependencies {
+        exclude(dependency("org.lwjgl:lwjgl"))
+        exclude(dependency("org.lwjgl:lwjgl-glfw"))
+        exclude(dependency("org.lwjgl:lwjgl-opengl"))
+    }
 }
 
 tasks {
@@ -42,22 +59,16 @@ tasks {
         }
     }
 
-    shadowJar {
-        configurations = listOf(project.configurations.shadow.get())
-        dependencies {
-            exclude(dependency("org.lwjgl:lwjgl"))
-            exclude(dependency("org.lwjgl:lwjgl-glfw"))
-            exclude(dependency("org.lwjgl:lwjgl-opengl"))
-        }
+    compileKotlin {
+        kotlinOptions.jvmTarget = "17"
     }
 
     remapJar {
-        dependsOn(shadowJar)
-        mustRunAfter(shadowJar)
-    }
+        archiveBaseName.set("hajlib")
+        archiveVersion.set(project.version.toString())
+        archiveClassifier.set("remapped")
 
-    compileKotlin {
-        kotlinOptions.jvmTarget = "17"
+        finalizedBy(hajlibShadowJar)
     }
 }
 
