@@ -1,5 +1,3 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
 plugins {
     id("fabric-loom") version "1.2-SNAPSHOT"
     id("org.jetbrains.kotlin.jvm") version "1.8.22"
@@ -27,22 +25,6 @@ loom {
     accessWidenerPath.set(file("src/main/resources/hajlib.accesswidener"))
 }
 
-val hajlibShadowJar = tasks.register<ShadowJar>("hajlibShadowJar") {
-    dependsOn(tasks.remapJar)
-    from(tasks.remapJar.get().outputs.files)
-
-    configurations = listOf(project.configurations.shadow.get())
-    archiveBaseName.set("hajlib")
-    archiveVersion.set(project.version.toString())
-    archiveClassifier.set("")
-
-    dependencies {
-        exclude(dependency("org.lwjgl:lwjgl"))
-        exclude(dependency("org.lwjgl:lwjgl-glfw"))
-        exclude(dependency("org.lwjgl:lwjgl-opengl"))
-    }
-}
-
 tasks {
     processResources {
         inputs.property("version", project.version)
@@ -53,22 +35,32 @@ tasks {
         }
     }
 
-    jar {
-        from("LICENSE") {
-            rename { "${it}_${project.name}" }
-        }
-    }
-
     compileKotlin {
         kotlinOptions.jvmTarget = "17"
     }
 
-    remapJar {
-        archiveBaseName.set("hajlib")
-        archiveVersion.set(project.version.toString())
-        archiveClassifier.set("remapped")
+    jar {
+        enabled = false
+    }
 
-        finalizedBy(hajlibShadowJar)
+    shadowJar {
+        finalizedBy(remapJar)
+
+        from(sourceSets.main.get().output)
+
+        configurations = listOf(project.configurations.shadow.get())
+        archiveClassifier.set(jar.get().archiveClassifier)
+        destinationDirectory.set(jar.get().destinationDirectory)
+
+        dependencies {
+            exclude(dependency("org.lwjgl:lwjgl"))
+            exclude(dependency("org.lwjgl:lwjgl-glfw"))
+            exclude(dependency("org.lwjgl:lwjgl-opengl"))
+        }
+    }
+
+    remapJar {
+        inputFile.set(shadowJar.get().archiveFile)
     }
 }
 
