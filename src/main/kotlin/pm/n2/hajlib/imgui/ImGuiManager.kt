@@ -2,6 +2,7 @@ package pm.n2.hajlib.imgui
 
 import imgui.ImFontConfig
 import imgui.ImGui
+import imgui.extension.implot.ImPlot
 import imgui.flag.ImGuiConfigFlags
 import imgui.flag.ImGuiKey
 import imgui.gl3.ImGuiImplGl3
@@ -51,6 +52,8 @@ object ImGuiManager {
         imguiGLFW.init(handle, true)
 
         windowHandle = handle
+
+        ImPlot.createContext()
     }
 
     internal fun onFrameRender() {
