@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "hajlib",
   "version": "${version}",
-  "name": "hajlib",
+  "name": "HajLib",
   "description": "NotNet's Minecraft mod library",
   "authors": [
     "NotNite"
