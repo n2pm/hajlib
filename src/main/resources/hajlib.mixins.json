@@ -9,7 +9,9 @@
     "defaultRequire": 1
   },
   "client": [
-    "InputUtilMixin",
-    "RenderSystemMixin"
+    "imgui.InputUtilMixin",
+    "imgui.KeyboardMixin",
+    "imgui.MouseMixin",
+    "imgui.RenderSystemMixin"
   ]
 }

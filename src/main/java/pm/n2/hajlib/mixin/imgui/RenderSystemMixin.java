@@ -1,4 +1,4 @@
-package pm.n2.hajlib.mixin;
+package pm.n2.hajlib.mixin.imgui;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.spongepowered.asm.mixin.Mixin;

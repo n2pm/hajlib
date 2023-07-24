@@ -1,4 +1,4 @@
-package pm.n2.hajlib.mixin;
+package pm.n2.hajlib.mixin.imgui;
 
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFWCharModsCallbackI;

@@ -22,12 +22,6 @@ open class ImGuiScreen(title: Text) : Screen(title) {
     override fun init() {
         if (!initialized) {
             ImGuiManager.eventManager.registerFunc(ImGuiEvent.Draw::class, drawLambda)
-
-            val io = ImGui.getIO()
-            io.wantCaptureKeyboard = true
-            io.wantCaptureMouse = true
-            io.wantTextInput = true
-
             initialized = true
         }
     }
@@ -35,12 +29,6 @@ open class ImGuiScreen(title: Text) : Screen(title) {
     override fun removed() {
         if (initialized) {
             ImGuiManager.eventManager.unregisterFunc(ImGuiEvent.Draw::class, drawLambda)
-
-            val io = ImGui.getIO()
-            io.wantCaptureKeyboard = false
-            io.wantCaptureMouse = false
-            io.wantTextInput = false
-
             initialized = false
         }
 
